@@ -5,6 +5,14 @@ from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+
+#Configuration
+TELEGRAM_BOT_TOKEN = "token_bot"
+TELEGRAM_CHAT_ID = "chat_id"
+CVE_API_URL = "https://cve.circl.lu/api/search"
+
+#Configuration du base de données
+
 DATABASE_URL = 'sqlite:///vulnax.db'
 Base = declarative_base() # Crée une classe de base pour définir des classes d'entités.
 engine = create_engine(DATABASE_URL)  #creer une connexion à la BD
@@ -25,6 +33,7 @@ class Asset(Base):
 Base.metadata.create_all(engine)
 print("[+] Base de données initialisée")
 
+# Gestion des assets
 def add_asset(name, ip_address, os=None):
     """Fonction pour ajouter un asset"""
     try:
@@ -39,8 +48,9 @@ def add_asset(name, ip_address, os=None):
 def list_assets():
     assets = session.query(Asset).all()
     if assets:
+        print("\n--- Liste des Assets ---")
         for asset in assets:
-            print(asset)
+            print(f"{asset.id} - {asset.name} - {asset.ip_address} - {asset.os} - {asset.date_added}")
     else:
         print("[!] Aucun asset trouvé")
 
@@ -54,8 +64,8 @@ def delete_asset(asset_id):
     else:
         print(f"[!] Asset introuvable")
 
-
-if __name__ == "__main__":
+# Menu
+def manage_assets():
     while True:
         print("\n--- Vulnax Asset Manager --- ")
         print("1. Ajouter un Asset")
@@ -79,3 +89,6 @@ if __name__ == "__main__":
             break
         else:
             print(f"[!] choix invalide")
+
+if __name__ == "__main__":
+    manage_assets()
