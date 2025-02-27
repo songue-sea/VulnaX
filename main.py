@@ -16,12 +16,16 @@ CVE_API_URL = "https://cve.circl.lu/api/search/"
 def scan(target):
     print(f"[+] Lancement du scan sur {target}")
     nm = nmap.PortScanner()
-    nm.scan(target, '22', '--unprivileged -')
-    print("[DEBUG] Résultats bruts de Nmap :")
-    print(nm.command_line())  # Vérifie la commande exécutée
-    print(nm.scaninfo())  # Infos sur le scan
-    print(nm.all_hosts())  # Liste des hôtes trouvésc
+    nm.scan(target, '22', '-sT')
+
+    #print("[DEBUG] Résultats bruts de Nmap :")
+    #print(nm.command_line())  # Vérifie la commande exécutée
+    #print(nm.scaninfo())  # Infos sur le scan
+    #print(nm.all_hosts())  # Liste des hôtes trouvés
+
     results = []
+    print(nm.all_hosts())
+    print(results)
     for host in nm.all_hosts():
         for proto in nm[host].all_protocols():
             ports = nm[host][proto].keys()
@@ -36,10 +40,11 @@ def scan(target):
                         'service': service,
                         'vulnerabilities': vuln
                     })
+    print(results)
 
 def check_vuln(service):
     try:
-        url = CVE_API_URL + service
+        url = f"{CVE_API_URL}{service}/{service}"
         response = requests.get(url)
         if response.status_code == 200:
             data = response.json()
@@ -53,4 +58,4 @@ def check_vuln(service):
         print(f"[!] Erreur lors de la vérification de {service}:{e}")
         return []
 if __name__ == "__main__":
-    scan("10.1.5.2")
+    print(check_vuln("ssh"))
