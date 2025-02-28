@@ -85,7 +85,7 @@ def scan(target):
                 cpe = nm[host][proto][port]['cpe']
                 print(f"{host}:{port} --- {service}")
                 print(f"{host}:{port} --- {cpe}")
-                vuln = check_vuln(service)
+                vuln = check_vuln(cpe)
                 if vuln:
                     results.append({
                         'host': host,
