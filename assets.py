@@ -1,24 +1,29 @@
 """Pour la gestion des assets """
+import nmap
 import os
 from datetime import datetime
+from xmlrpc.client import Boolean
+import requests
 
+import sqlalchemy.sql.sqltypes
 from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
+from apscheduler.schedulers.background import BackgroundScheduler
 
+from check_vuln import check_vuln
 
 #Configuration
 TELEGRAM_BOT_TOKEN = "token_bot"
 TELEGRAM_CHAT_ID = "chat_id"
-CVE_API_URL = "https://cve.circl.lu/api/search"
 
 #Configuration du base de données
-
 DATABASE_URL = 'sqlite:///vulnax.db'
 Base = declarative_base() # Crée une classe de base pour définir des classes d'entités.
 engine = create_engine(DATABASE_URL)  #creer une connexion à la BD
 session = sessionmaker(bind=engine) #Crée une session pour interagir avec la base de données (ajout, suppression, mise à jour de données).
 session = session()
 
+# Modèles Asset
 class Asset(Base):
     __tablename__ = 'assets'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -30,8 +35,66 @@ class Asset(Base):
     def __repr__(self):
         return f"Assets(name={self.name}, ip_address={self.ip_address}, os={self.os})"
 
+#Modèle ScanTask
+class ScanTask(Base):
+    __tablename__ = 'scan_tasks'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    asset_id = Column(Integer, nullable=False)
+    frequency = Column(String, nullable=False)
+    last_run = Column(DateTime, nullable=True)
+    active = Column(sqlalchemy.sql.sqltypes.BOOLEAN, default=True)
+
 Base.metadata.create_all(engine)
+scheduler = BackgroundScheduler()
+scheduler.start()
 print("[+] Base de données initialisée")
+
+
+#Fonction pour ajouter une tầche de scan plannifiée
+def add_scan_task(asset_id, frequency):
+    task = ScanTask(asset_id=asset_id, frequency=frequency)
+    session.add(task)
+    session.commit()
+    print(f"[+] Tache de scan ajoutée pour Asset ID {asset_id}  - Fréquence {frequency}")
+    schedule_task(task)
+
+# Fontion pour plannifier une tache avec APScheduler
+def schedule_task(task):
+    asset = session.query(Asset).filter_by(id=task.asset_id).first()
+    if not asset:
+        print(f"[!] Asset non trouvé pour la tâche {task.id}")
+        return
+
+    if task.frequency == 'daily':
+        scheduler.add_job(scan, 'interval', days=1, args=[asset.ip_address], id=str(task.id))
+    elif task.frequency == 'hourly':
+        scheduler.add_job(scan, 'interval', hours=1, args=[asset.ip_address], id=str(task.id))
+
+    print(f"[+] Tâche plannifiée pour {asset.ip_address} ({task.frequency})")
+
+def scan(target):
+    print(f"[+] Lancement du scan sur {target}")
+    nm = nmap.PortScanner()
+    nm.scan(target)
+    results = []
+    for host in nm.all_hosts():
+        for proto in nm[host].all_protocols():
+            ports = nm[host][proto].keys()
+            for port in ports:
+                service = nm[host][proto][port]['name']
+                cpe = nm[host][proto][port]['cpe']
+                print(f"{host}:{port} --- {service}")
+                print(f"{host}:{port} --- {cpe}")
+                vuln = check_vuln(service)
+                if vuln:
+                    results.append({
+                        'host': host,
+                        'port': port,
+                        'service': service,
+                        'vulnerabilities': vuln
+                    })
+
+
 
 # Gestion des assets
 def add_asset(name, ip_address, os=None):
